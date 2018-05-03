@@ -1,7 +1,9 @@
 (ns my-exercise.home
   (:require [hiccup.page :refer [html5]]
             [ring.util.anti-forgery :refer [anti-forgery-field]]
-            [my-exercise.us-state :as us-state]))
+            [my-exercise.us-state :as us-state]
+            [clj-time.format :as f]
+            [clj-time.coerce :as c]))
 
 (defn header [_]
   [:head
@@ -96,17 +98,18 @@
    (ocd-id-explainer request)
    (current-elections-link request)])
 
-(defn address-form [_]
+(defn address-form [request]
   [:div {:class "address-form"}
    [:h1 "Find my next election"]
-   [:form {:action "/search" :method "post"}
+   [:form {:action "/" :method "post"}
     (anti-forgery-field)
     [:p "Enter the address where you are registered to vote"]
     [:div
      [:label {:for "street-field"} "Street:"]
      [:input {:id "street-field"
               :type "text"
-              :name "street"}]]
+              :name "street"
+              :required true}]]
     [:div
      [:label {:for "street-2-field"} "Street 2:"]
      [:input {:id "street-2-field"
@@ -116,10 +119,12 @@
      [:label {:for "city-field"} "City:"]
      [:input {:id "city-field"
               :type "text"
-              :name "city"}]
+              :name "city"
+              :required true}]
      [:label {:for "state-field"} "State:"]
      [:select {:id "state-field"
-               :name "state"}
+               :name "state"
+               :required true}
       [:option ""]
       (for [state us-state/postal-abbreviations]
         [:option {:value state} state])]
@@ -127,12 +132,39 @@
      [:input {:id "zip-field"
               :type "text"
               :name "zip"
-              :size "10"}]]
+              :size "10"
+              :required true}]]
     [:div.button
      [:button {:type "submit"} "Search"]]]])
 
+(defn format-date [java-date]
+  (def custom-formatter (f/formatter "EEEE MMMM dd, yyyy"))
+  (f/unparse custom-formatter
+    (c/from-date java-date)))
+
+(defn search-result [request]
+  (def address (:address-string request))
+  (def date
+    (format-date (:date request)))
+  (def description (:description request))
+  (def message (:message request))
+  (def url (:polling-place-url request))
+  (if (contains? request :description)
+    [:div
+    [:p "The next election for " address " is:"]
+    [:p description]
+    [:p date]
+    [:a {:href url} "Local Voter Information"]
+    ]
+    [:div
+    [:p message]]
+  )
+)
+
 (defn page [request]
   (html5
+   (address-form request)
+   (search-result request)
    (header request)
    (instructions request)
-   (address-form request)))
+))
